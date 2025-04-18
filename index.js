@@ -20,18 +20,34 @@ app.post("/api/review", async (req, res) => {
 
   try {
     // Fetch repositories
-    const repoRes = await fetch(
-      `https://api.github.com/users/${username}/repos`
-    );
-    const repos = await repoRes.json();
+    // const repoRes = await fetch(
+    //   `https://api.github.com/users/${username}/repos`
+    // );
+    // const repos = await repoRes.json();
 
-    if (!Array.isArray(repos)) {
-      return res.status(404).json({ error: "GitHub repositories not found" });
+    // if (!Array.isArray(repos)) {
+    //   return res.status(404).json({ error: "Soory We At Moment We Don't Able to Fetch Data" });
+    // }
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+    const repoRes = await fetch(`https://api.github.com/users/${username}/repos`, {
+      headers: GITHUB_TOKEN
+        ? { Authorization: `token ${GITHUB_TOKEN}` }
+        : {},
+    });
+    
+    if (!repoRes.ok) {
+      const errorData = await repoRes.json();
+      return res.status(repoRes.status).json({
+        error: errorData.message || "Failed to fetch GitHub repos",
+      });
     }
-
+    
+    const repos = await repoRes.json();
+    
     // Top 10 epositories info (name, description, language)
     const topRepos = repos
-      .slice(0, 10)
+      .slice(0, 5)
       .map((repo, index) => {
         return `${index + 1}. ${repo.name} - ${
           repo.description || "No description"
