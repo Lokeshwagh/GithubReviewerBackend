@@ -3,6 +3,8 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { load } from "cheerio";
+
 const app = express();
 const PORT = 5000;
 
@@ -11,6 +13,45 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+// ✅ UPDATED: Contribution count function with User-Agent
+async function getContributionCount(username) {
+  try {
+    const response = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `bearer ${GITHUB_TOKEN}`,
+      },
+      body: JSON.stringify({
+        query: `
+          query {
+            user(login: "${username}") {
+              contributionsCollection {
+                contributionCalendar {
+                  totalContributions
+                }
+              }
+            }
+          }
+        `,
+      }),
+    });
+
+    const data = await response.json();
+
+    const total = data.data?.user?.contributionsCollection?.contributionCalendar?.totalContributions;
+
+    console.log("📈 Total Contributions via GraphQL:", total);
+    return total ?? 0;
+  } catch (err) {
+    console.error(" GraphQL error:", err.message);
+    return null;
+  }
+}
+
+
 app.post("/api/review", async (req, res) => {
   const { username } = req.body;
 
@@ -19,33 +60,23 @@ app.post("/api/review", async (req, res) => {
   }
 
   try {
-    // Fetch repositories
-    // const repoRes = await fetch(
-    //   `https://api.github.com/users/${username}/repos`
-    // );
-    // const repos = await repoRes.json();
-
-    // if (!Array.isArray(repos)) {
-    //   return res.status(404).json({ error: "Soory We At Moment We Don't Able to Fetch Data" });
-    // }
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-
+    // Get contributions
+    const contributions = await getContributionCount(username);
+console.log(contributions)
+    // Fetch repos
     const repoRes = await fetch(`https://api.github.com/users/${username}/repos`, {
-      headers: GITHUB_TOKEN
-        ? { Authorization: `token ${GITHUB_TOKEN}` }
-        : {},
+      headers: GITHUB_TOKEN ? { Authorization: `token ${GITHUB_TOKEN}` } : {},
     });
-    
+
     if (!repoRes.ok) {
       const errorData = await repoRes.json();
       return res.status(repoRes.status).json({
         error: errorData.message || "Failed to fetch GitHub repos",
       });
     }
-    
+
     const repos = await repoRes.json();
-    
-    // Top 10 epositories info (name, description, language)
+
     const topRepos = repos
       .slice(0, 5)
       .map((repo, index) => {
@@ -55,8 +86,13 @@ app.post("/api/review", async (req, res) => {
       })
       .join("\n");
 
-    // Focused prompt for Gemini
-    const prompt = `Ek aisi GitHub profile review likhni hai jo bindass, seedhi aur full-on hinglish style me ho 😎. Review ki starting ek funny joke ya punchline se karo 😂 jisse reader ka mood ban jaye.
+    const prompt = `
+Starting me profile picture achi hai yesi tarif karo 😅 badhme joke marna acha to direct soul ko touch ho.
+Ek aisi GitHub profile review likhni hai jo bindass, seedhi aur full-on hinglish style me ho 😎. Review ki starting ek funny joke ya punchline se karo 😂 jisse reader ka mood ban jaye.
+dont said ki joke sune? like this direct tell jock related to coder and developer
+Sundar Pichai ka bachpan ka code: if (IndianMom == angry) then run(); 🏃‍♂️😂
+Ya fir Mark Zuckerberg bolta – "Main Facebook banaya, lekin is bande ki repo dekh ke privacy chhodke sab kuch leak ho gaya!" 😬💻 is type ke alag alag joke dena har alag alag username ke liye
+Is bande ke ${contributions ?? "kuch"} contributions hain — matlab banda contribution calendar me green square barsa raha hai ya bas nimbu soda pee raha hai, yeh tu decide kar 😂💻
 
 Uske baad agar GitHub profile me kaafi achi repositories hain aur technologies achhi use hui hain, to us user ki dhamakedaar tareef karo — jaise "bhai tu to sach me coding ka baap nikla", ya "AI bhi tujhse training maang raha hoga" type 😅🔥.
 
@@ -69,14 +105,11 @@ Language Hinglish (Roman Hindi + English mix) me ho jese "Isme Express.js use hu
 
 Motivational lines bhi kabhi kabhi daalo — jaise "Sacha coder kabhi Github repo chhota nahi banata!" ya "Kal kisne dekha? Aaj code likh bhai!" 💪🔥
 
-Review approx 300 words ka ho. Style thoda funny, thoda inspiring, thoda savage ho — ekdum engaging jisse banda padhte hi ya to smile kare ya sochne lage 🔥🧠 isme yesa mat bata joke pahile ya madme nahi bolna direact suna dena
+Review approx 300 words ka ho. Style thoda funny, thoda inspiring, thoda savage ho — ekdum engaging jisse banda padhte hi ya to smile kare ya sochne lage 🔥🧠
 
-Yeh rahe repositories:
-
-${topRepos}  yesi hi output do par ye mat batao ki ye joke hai ya motivational line hai be genuine jaise technical person judge karega vaise hi juidge karo har time alag alag joke or response dena 
+Yeh rahe repositories:\n${topRepos}
 `;
 
-    // Gemini API request
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -93,18 +126,20 @@ ${topRepos}  yesi hi output do par ye mat batao ki ye joke hai ya motivational l
     }
 
     const reviewText = geminiData.candidates[0].content.parts[0].text;
-
     res.json({ review: reviewText });
   } catch (err) {
     console.error("Error:", err.message);
-    res
-      .status(500)
-      .json({ error: "Failed to generate review", details: err.message });
+    res.status(500).json({
+      error: "Failed to generate review",
+      details: err.message,
+    });
   }
 });
+
 app.get("/", (req, res) => {
   res.send("🔥 GitHub Reviewer Backend is live!");
 });
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
