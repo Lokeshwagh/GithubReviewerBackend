@@ -73,7 +73,7 @@ Review approx 300 words ka ho. Style thoda funny, thoda inspiring, thoda savage 
 
 Yeh rahe repositories:
 
-${topRepos}  yesi hi output do par ye mat batao ki ye joke hai ya motivational line hai be genuine jaise technical person judge karega vaise hi juidge karo
+${topRepos}  yesi hi output do par ye mat batao ki ye joke hai ya motivational line hai be genuine jaise technical person judge karega vaise hi juidge karo har time alag alag joke or response dena 
 `;
 
     // Gemini API request
