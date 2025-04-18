@@ -86,7 +86,9 @@ ${topRepos}  yesi hi output do par ye mat batao ki ye joke hai ya motivational l
       .json({ error: "Failed to generate review", details: err.message });
   }
 });
-
+app.get("/", (req, res) => {
+  res.send("🔥 GitHub Reviewer Backend is live!");
+});
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
